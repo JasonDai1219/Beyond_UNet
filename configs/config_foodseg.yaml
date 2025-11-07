@@ -1,0 +1,22 @@
+# configs/config_foodseg.yaml
+experiment_name: "unet_foodseg_baseline"
+
+dataset:
+  name: "EduardoPacheco/FoodSeg103"
+  image_size: 512
+  batch_size: 2
+  num_workers: 4
+  reflect_threshold: 220
+  compute_reflect: true
+
+training:
+  epochs: 10
+  lr: 1e-4
+  alpha: 0.5     # Dice loss 权重
+  beta: 0.2      # Consistency loss 权重
+  save_interval: 2
+
+logging:
+  use_tensorboard: true
+  log_dir: "experiments/logs"
+  checkpoint_dir: "experiments/checkpoints"
