@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torchvision import models
+import torch.nn.functional as F
 
 class DoubleConv(nn.Module):
     """(convolution => [BN] => ReLU) * 2"""
@@ -67,13 +68,19 @@ class VGG_Autoencoder(nn.Module):
                     param.requires_grad = False
 
         # Define decoder blocks without skip connections
+        # Use 5 up-sampling stages to mirror the 5 pooling stages in VGG-16
+        # Channel plan: 512 -> 512 -> 512 -> 256 -> 128 -> 64
         self.up1 = Up(512, 512, bilinear)
-        self.up2 = Up(512, 256, bilinear)
-        self.up3 = Up(256, 128, bilinear)
-        self.up4 = Up(128, 64, bilinear)
+        self.up2 = Up(512, 512, bilinear)
+        self.up3 = Up(512, 256, bilinear)
+        self.up4 = Up(256, 128, bilinear)
+        self.up5 = Up(128, 64, bilinear)
         self.outc = OutConv(64, n_classes)
 
     def forward(self, x):
+        # save original spatial size
+        orig_h, orig_w = x.shape[2], x.shape[3]
+
         # Encoder path
         x = self.encoder1(x)
         x = self.encoder2(x)
@@ -86,7 +93,12 @@ class VGG_Autoencoder(nn.Module):
         x = self.up2(x)
         x = self.up3(x)
         x = self.up4(x)
+        x = self.up5(x)
         logits = self.outc(x)
+
+        # Resize logits to match original input size (H, W) using bilinear
+        # interpolation to handle cases where input size is not divisible by 32
+        logits = F.interpolate(logits, size=(orig_h, orig_w), mode='bilinear', align_corners=True)
         return logits
 
 if __name__ == '__main__':
@@ -94,7 +106,8 @@ if __name__ == '__main__':
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     num_classes = 104 # Example number of classes
-    input_tensor = torch.randn(2, 3, 256, 256).to(device) # Batch size 2, 3 channels, 256x256 image
+    # Use user's desired input size: (H=image_height, W=image_width) = (250, 450)
+    input_tensor = torch.randn(2, 3, 250, 450).to(device) # Batch size 2, 3 channels, 250x450 image
     
     # Test with encoder frozen (default)
     print("Testing with frozen encoder...")
@@ -103,7 +116,7 @@ if __name__ == '__main__':
     
     print(f"Input shape: {input_tensor.shape}")
     print(f"Output shape: {output_frozen.shape}")
-    assert output_frozen.shape == (2, num_classes, 256, 256), "Output shape is incorrect!"
+    assert output_frozen.shape == (2, num_classes, 250, 450), "Output shape is incorrect!"
     
     # Check if encoder weights are actually frozen
     for name, param in model_frozen.named_parameters():
