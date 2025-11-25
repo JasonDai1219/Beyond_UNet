@@ -105,6 +105,7 @@ def main(cfg_path="configs/config_foodseg.yaml"):
         print("🐢 Using CPU (slow)")
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
     # ---- Dataset & Loader ----
     # ✅ 标准化数据划分（80 / 10 / 10 + 固定 seed）
     train_hf, val_hf, test_hf = load_foodseg103_splits(
@@ -112,10 +113,16 @@ def main(cfg_path="configs/config_foodseg.yaml"):
         val_ratio=0.1,
         seed=42
     )
+=======
+    # ---- Dataset & Loader: 80/10/10 ----
+    print("📂 Splitting FoodSeg103 into 80/10/10 ...")
+    ds_train_raw, ds_val_raw, ds_test_raw = load_foodseg103_splits()
+>>>>>>> Stashed changes
 
     transform = BasicTransform(size=cfg["dataset"]["image_size"])
 
     ds_train = FoodSegDataset(
+<<<<<<< Updated upstream
         train_hf,
         transform=transform,
         compute_reflect=cfg["dataset"]["compute_reflect"],
@@ -154,6 +161,8 @@ def main(cfg_path="configs/config_foodseg.yaml"):
     transform = BasicTransform(size=cfg["dataset"]["image_size"])
 
     ds_train = FoodSegDataset(
+=======
+>>>>>>> Stashed changes
         hf_subset=ds_train_raw,
         transform=transform,
         compute_reflect=cfg["dataset"]["compute_reflect"],
@@ -213,6 +222,7 @@ def main(cfg_path="configs/config_foodseg.yaml"):
     # ---- Training Loop ----
     for epoch in range(cfg["training"]["epochs"]):
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         train_loss = train_one_epoch(model, train_loader, loss_fn, optimizer, device, epoch, writer)
 
         # ===== Validation =====
@@ -236,6 +246,59 @@ def main(cfg_path="configs/config_foodseg.yaml"):
             ckpt_path = os.path.join(
                 cfg["logging"]["checkpoint_dir"],
                 f"unet_epoch{epoch + 1}.pt"
+=======
+        train_loss = train_one_epoch(
+            model,
+            loader_train,
+            loss_fn,
+            optimizer,
+            device,
+            epoch,
+            writer,
+            lambda_edge=lambda_edge,
+            lambda_reflect=lambda_reflect,
+            sigma=sigma_edge,
+            num_classes=104,
+        )
+
+        # ---- Validation ----
+        model.eval()
+        val_loss = 0.0
+        with torch.no_grad():
+            for batch in loader_val:
+                images_cpu = batch["image"]
+                masks_cpu = batch["mask"]
+
+                weight_map = compute_weight_map_batch(
+                    images_cpu, masks_cpu,
+                    lambda_edge=lambda_edge,
+                    lambda_reflect=lambda_reflect,
+                    sigma=sigma_edge,
+                    num_classes=104,
+                )
+
+                images = images_cpu.to(device)
+                masks = masks_cpu.to(device)
+                weight_map = weight_map.to(device)
+
+                preds = model(images)
+                loss, _ = loss_fn(preds, masks, images, weight_map)
+                val_loss += loss.item()
+        val_loss /= len(loader_val)
+        print(f"Epoch {epoch} VAL loss: {val_loss:.4f}")
+
+        # ---- Checkpoint ----
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            ckpt_path = os.path.join(cfg["logging"]["checkpoint_dir"], "best_model.pt")
+            torch.save(model.state_dict(), ckpt_path)
+            print(f"💾 Best model saved at epoch {epoch} → {ckpt_path}")
+
+        if (epoch + 1) % cfg["training"]["save_interval"] == 0:
+            ckpt_path = os.path.join(
+                cfg["logging"]["checkpoint_dir"],
+                f"unet_epoch{epoch+1}.pt",
+>>>>>>> Stashed changes
 =======
         train_loss = train_one_epoch(
             model,
