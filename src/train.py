@@ -12,6 +12,34 @@ from src.models.unet import UNet
 from src.models.losses import TotalLoss
 
 # =========================
+# mIoU computation
+# =========================
+
+def compute_miou(preds, masks, num_classes):
+    """
+    preds: (B, C, H, W)
+    masks: (B, H, W)
+    """
+    preds = torch.argmax(preds, dim=1)
+    ious = []
+
+    for cls in range(num_classes):
+        pred_cls = (preds == cls)
+        mask_cls = (masks == cls)
+
+        intersection = (pred_cls & mask_cls).sum().item()
+        union = (pred_cls | mask_cls).sum().item()
+
+        if union == 0:
+            continue
+        ious.append(intersection / union)
+
+    if len(ious) == 0:
+        return 0.0
+    return sum(ious) / len(ious)
+
+
+# =========================
 # Train one epoch
 # =========================
 
@@ -44,12 +72,13 @@ def train_one_epoch(model, loader, loss_fn, optimizer, device, epoch, writer=Non
 
 
 # =========================
-# Validation loop
+# Validation loop (with mIoU)
 # =========================
 
-def validate(model, loader, loss_fn, device, epoch, writer=None):
+def validate(model, loader, loss_fn, device, epoch, writer=None, num_classes=104):
     model.eval()
     total_loss = 0
+    total_miou = 0
 
     with torch.no_grad():
         for batch in loader:
@@ -60,22 +89,29 @@ def validate(model, loader, loss_fn, device, epoch, writer=None):
             loss, _ = loss_fn(preds, masks, images)
             total_loss += loss.item()
 
+            miou = compute_miou(preds, masks, num_classes)
+            total_miou += miou
+
     avg_loss = total_loss / len(loader)
-    print(f"Epoch {epoch} avg val loss: {avg_loss:.4f}")
+    avg_miou = total_miou / len(loader)
+
+    print(f"Epoch {epoch} avg val loss: {avg_loss:.4f} | mIoU: {avg_miou:.4f}")
 
     if writer:
         writer.add_scalar("Loss/val", avg_loss, epoch)
+        writer.add_scalar("Metric/mIoU_val", avg_miou, epoch)
 
-    return avg_loss
+    return avg_loss, avg_miou
 
 
 # =========================
-# Test loop
+# Test loop (with mIoU)
 # =========================
 
-def test(model, loader, loss_fn, device):
+def test(model, loader, loss_fn, device, num_classes=104):
     model.eval()
     total_loss = 0
+    total_miou = 0
 
     with torch.no_grad():
         for batch in loader:
@@ -86,9 +122,14 @@ def test(model, loader, loss_fn, device):
             loss, _ = loss_fn(preds, masks, images)
             total_loss += loss.item()
 
+            miou = compute_miou(preds, masks, num_classes)
+            total_miou += miou
+
     avg_loss = total_loss / len(loader)
-    print(f"✅ Final Test Loss: {avg_loss:.6f}")
-    return avg_loss
+    avg_miou = total_miou / len(loader)
+
+    print(f"✅ Final Test Loss: {avg_loss:.6f} | Test mIoU: {avg_miou:.4f}")
+    return avg_loss, avg_miou
 
 
 # =========================
@@ -165,14 +206,12 @@ def main(cfg_path="configs/config_foodseg.yaml"):
     os.makedirs(cfg["logging"]["log_dir"], exist_ok=True)
     os.makedirs(cfg["logging"]["checkpoint_dir"], exist_ok=True)
 
-    writer = None
-    if cfg["logging"]["use_tensorboard"]:
-        writer = SummaryWriter(cfg["logging"]["log_dir"])
+    writer = SummaryWriter(cfg["logging"]["log_dir"]) if cfg["logging"]["use_tensorboard"] else None
 
     # =========================
     # Training Loop
     # =========================
-    best_val_loss = float("inf")
+    best_miou = 0.0
     best_model_path = os.path.join(cfg["logging"]["checkpoint_dir"], "best_model.pt")
 
     for epoch in range(cfg["training"]["epochs"]):
@@ -180,17 +219,16 @@ def main(cfg_path="configs/config_foodseg.yaml"):
             model, train_loader, loss_fn, optimizer, device, epoch, writer
         )
 
-        val_loss = validate(
-            model, val_loader, loss_fn, device, epoch, writer
+        val_loss, val_miou = validate(
+            model, val_loader, loss_fn, device, epoch, writer, num_classes=104
         )
 
-        # 保存最优模型
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
+        # Save best model based on mIoU
+        if val_miou > best_miou:
+            best_miou = val_miou
             torch.save(model.state_dict(), best_model_path)
-            print(f"🌟 New best model saved (val loss = {best_val_loss:.4f})")
+            print(f"🌟 New best model saved (mIoU = {best_miou:.4f})")
 
-        # 定期保存 checkpoint
         if (epoch + 1) % cfg["training"]["save_interval"] == 0:
             ckpt_path = os.path.join(
                 cfg["logging"]["checkpoint_dir"],
@@ -203,12 +241,15 @@ def main(cfg_path="configs/config_foodseg.yaml"):
     # Final Test Evaluation
     # =========================
     print("🚀 Evaluating on test set...")
-
     model.load_state_dict(torch.load(best_model_path, map_location=device))
-    test_loss = test(model, test_loader, loss_fn, device)
+
+    test_loss, test_miou = test(
+        model, test_loader, loss_fn, device, num_classes=104
+    )
 
     if writer:
         writer.add_scalar("Loss/test", test_loss)
+        writer.add_scalar("Metric/mIoU_test", test_miou)
         writer.close()
 
 
