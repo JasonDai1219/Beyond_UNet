@@ -10,10 +10,13 @@ dataset:
   compute_reflect: true
 
 training:
-  epochs: 10
+  epochs: 5
   lr: 1e-4
-  alpha: 0.5     # Dice loss 权重
-  beta: 0.2      # Consistency loss 权重
+  alpha: 0.5          # Dice loss 系数
+  beta: 0.2           # Consistency loss 系数
+  lambda_edge: 1.0    # 边界权重 λ₁
+  lambda_reflect: 1.0 # 反光惩罚 λ₂
+  sigma_edge: 5.0     # 边界距离权重的 σ
   save_interval: 2
 
 logging:
