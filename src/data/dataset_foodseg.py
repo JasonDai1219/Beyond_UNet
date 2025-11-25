@@ -1,4 +1,9 @@
 # src/data/dataset_foodseg.py
+from datasets import load_dataset
+from torch.utils.data import Dataset
+import numpy as np
+from PIL import Image
+# src/data/dataset_foodseg.py
 
 from datasets import load_dataset
 from torch.utils.data import Dataset
@@ -7,28 +12,8 @@ from PIL import Image
 import torch
 import random
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
 class FoodSegDataset(Dataset):
     def __init__(self, hf_subset, transform=None, compute_reflect=False, reflect_threshold=220):
-=======
-
-# ---------------------------------------------------------
-# Dataset Class
-# ---------------------------------------------------------
-class FoodSegDataset(Dataset):
-    def __init__(self, hf_subset, transform=None,
-                 compute_reflect=False, reflect_threshold=220):
->>>>>>> Stashed changes
-=======
-
-# ---------------------------------------------------------
-# Dataset Class
-# ---------------------------------------------------------
-class FoodSegDataset(Dataset):
-    def __init__(self, hf_subset, transform=None,
-                 compute_reflect=False, reflect_threshold=220):
->>>>>>> Stashed changes
         self.dataset = hf_subset
         self.transform = transform
         self.compute_reflect = compute_reflect
@@ -41,19 +26,11 @@ class FoodSegDataset(Dataset):
         image = self.dataset[idx]["image"].convert("RGB")
         mask = np.array(self.dataset[idx]["label"], dtype=np.int64)
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
         sample = {
             "image": image,
             "mask": mask
         }
 
-=======
-        # optional reflectance
->>>>>>> Stashed changes
-=======
-        # optional reflectance
->>>>>>> Stashed changes
         if self.compute_reflect:
             gray = np.array(image.convert("L"))
             reflect_ratio = (gray > self.reflect_threshold).sum() / gray.size
@@ -65,8 +42,6 @@ class FoodSegDataset(Dataset):
         return sample
 
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
 def load_foodseg103_splits(train_ratio=0.8, val_ratio=0.1, seed=42):
     ds = load_dataset("EduardoPacheco/FoodSeg103")["train"]
 
@@ -84,29 +59,3 @@ def load_foodseg103_splits(train_ratio=0.8, val_ratio=0.1, seed=42):
     test_ds = val_test["test"]
 
     return train_ds, val_ds, test_ds
-=======
-=======
->>>>>>> Stashed changes
-# ---------------------------------------------------------
-# 80/10/10 Data Split Function (outside the class!)
-# ---------------------------------------------------------
-def load_foodseg103_splits(train_ratio=0.8, val_ratio=0.1, seed=42):
-    ds = load_dataset("EduardoPacheco/FoodSeg103")["train"]
-
-    # Split into train and temp
-    ds_train_val = ds.train_test_split(test_size=(1 - train_ratio), seed=seed)
-    ds_train = ds_train_val["train"]
-    ds_temp = ds_train_val["test"]
-
-    # Split temp into val and test
-    relative_val = val_ratio / (1 - train_ratio)
-    ds_val_test = ds_temp.train_test_split(test_size=(1 - relative_val), seed=seed)
-    ds_val = ds_val_test["train"]
-    ds_test = ds_val_test["test"]
-
-<<<<<<< Updated upstream
-    return ds_train, ds_val, ds_test
->>>>>>> Stashed changes
-=======
-    return ds_train, ds_val, ds_test
->>>>>>> Stashed changes
