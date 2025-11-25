@@ -1,24 +1,33 @@
 # src/data/transforms.py
+
 from torchvision import transforms
+from PIL import Image
 import torch
 import numpy as np
-from PIL import Image
 
 class BasicTransform:
     def __init__(self, size=512):
-        self.img_transform = transforms.Compose([
+        self.image_transform = transforms.Compose([
             transforms.Resize((size, size)),
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                 std=[0.229, 0.224, 0.225])
+            transforms.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225]
+            )
+        ])
+
+        self.mask_transform = transforms.Compose([
+            transforms.Resize((size, size), interpolation=Image.NEAREST)
         ])
 
     def __call__(self, sample):
         image, mask = sample["image"], sample["mask"]
-        image = self.img_transform(image)
-        mask = mask.astype(np.int32)  # ✅ 转换为 Pillow 可接受的类型
-        mask = torch.tensor(np.array(
-            Image.fromarray(mask).resize((512, 512), resample=Image.Resampling.NEAREST)
-        ), dtype=torch.long)
-        sample["image"], sample["mask"] = image, mask
+
+        image = self.image_transform(image)
+        mask = Image.fromarray(mask.astype("uint8"))
+        mask = self.mask_transform(mask)
+        mask = torch.from_numpy(np.array(mask)).long()
+
+        sample["image"] = image
+        sample["mask"] = mask
         return sample
