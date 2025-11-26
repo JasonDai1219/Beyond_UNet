@@ -1,4 +1,3 @@
-# src/train.py
 import os
 import yaml
 import torch
@@ -8,15 +7,15 @@ from datetime import datetime
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
-from torch.cuda.amp import autocast, GradScaler
 
 from src.data.dataset_foodseg import FoodSegDataset, load_foodseg103_splits
 from src.data.transforms import BasicTransform
 from src.models.unet import UNet
 from src.models.losses import TotalLoss
 
+
 # =========================
-# Reproducibility
+# Seed for reproducibility
 # =========================
 
 def set_seed(seed=42):
@@ -28,6 +27,7 @@ def set_seed(seed=42):
     torch.backends.cudnn.benchmark = False
 
 set_seed(42)
+
 
 # =========================
 # mIoU computation
@@ -43,22 +43,22 @@ def compute_miou(preds, masks, num_classes):
 
         intersection = (pred_cls & mask_cls).sum().item()
         union = (pred_cls | mask_cls).sum().item()
-
         if union == 0:
             continue
         ious.append(intersection / union)
 
-    if len(ious) == 0:
-        return 0.0
-    return float(sum(ious) / len(ious))
+    return 0.0 if len(ious) == 0 else sum(ious) / len(ious)
+
 
 # =========================
 # Train one epoch (AMP enabled)
 # =========================
 
-def train_one_epoch(model, loader, loss_fn, optimizer, device, epoch, writer=None, scaler=None):
+def train_one_epoch(model, loader, loss_fn, optimizer, device, epoch, writer=None):
     model.train()
     total_loss = 0
+
+    scaler = torch.cuda.amp.GradScaler(enabled=(device.type == "cuda"))
 
     for step, batch in enumerate(tqdm(loader, desc=f"Epoch {epoch}")):
         images = batch["image"].to(device)
@@ -66,7 +66,7 @@ def train_one_epoch(model, loader, loss_fn, optimizer, device, epoch, writer=Non
 
         optimizer.zero_grad()
 
-        with autocast(enabled=(device.type == "cuda")):
+        with torch.cuda.amp.autocast(enabled=(device.type == "cuda")):
             preds = model(images)
             loss, parts = loss_fn(preds, masks, images)
 
@@ -79,10 +79,13 @@ def train_one_epoch(model, loader, loss_fn, optimizer, device, epoch, writer=Non
         if writer:
             global_step = epoch * len(loader) + step
             writer.add_scalar("Loss/train_total", loss.item(), global_step)
+            for k, v in parts.items():
+                writer.add_scalar(f"Loss/train_{k}", v, global_step)
 
     avg_loss = total_loss / len(loader)
     print(f"Epoch {epoch} avg train loss: {avg_loss:.4f}")
     return avg_loss
+
 
 # =========================
 # Validation loop
@@ -115,6 +118,7 @@ def validate(model, loader, loss_fn, device, epoch, writer=None, num_classes=104
 
     return avg_loss, avg_miou
 
+
 # =========================
 # Test loop
 # =========================
@@ -141,8 +145,9 @@ def test(model, loader, loss_fn, device, num_classes=104):
     print(f"✅ Final Test Loss: {avg_loss:.6f} | Test mIoU: {avg_miou:.4f}")
     return avg_loss, avg_miou
 
+
 # =========================
-# Experiment logging
+# Experiment Logger
 # =========================
 
 def log_experiment(cfg, best_val_miou, test_miou, save_path="experiments/experiments_log.txt"):
@@ -163,65 +168,68 @@ def log_experiment(cfg, best_val_miou, test_miou, save_path="experiments/experim
         f.write(f"BEST Val mIoU: {best_val_miou:.4f}\n")
         f.write(f"TEST mIoU: {test_miou:.4f}\n\n")
 
+
 # =========================
-# Main
+# Main Training
 # =========================
 
 def main(cfg_path="configs/config_foodseg.yaml"):
     with open(cfg_path, "r") as f:
         cfg = yaml.safe_load(f)
 
-    if torch.cuda.is_available():
-        device = torch.device("cuda")
-        print("⚡ Using NVIDIA CUDA GPU")
-    else:
-        device = torch.device("cpu")
-        print("🐢 Using CPU")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"⚡ Using device: {device}")
 
-    train_hf, val_hf, test_hf = load_foodseg103_splits(
-        train_ratio=0.8,
-        val_ratio=0.1,
-        seed=42
-    )
-
+    train_hf, val_hf, test_hf = load_foodseg103_splits(0.8, 0.1, seed=42)
     transform = BasicTransform(size=cfg["dataset"]["image_size"])
 
     ds_train = FoodSegDataset(train_hf, transform=transform)
     ds_val = FoodSegDataset(val_hf, transform=transform)
     ds_test = FoodSegDataset(test_hf, transform=transform)
 
-    train_loader = DataLoader(ds_train, batch_size=cfg["dataset"]["batch_size"], shuffle=True, num_workers=cfg["dataset"]["num_workers"])
-    val_loader = DataLoader(ds_val, batch_size=cfg["dataset"]["batch_size"], shuffle=False, num_workers=cfg["dataset"]["num_workers"])
-    test_loader = DataLoader(ds_test, batch_size=cfg["dataset"]["batch_size"], shuffle=False, num_workers=cfg["dataset"]["num_workers"])
+    train_loader = DataLoader(ds_train, batch_size=cfg["dataset"]["batch_size"], shuffle=True)
+    val_loader = DataLoader(ds_val, batch_size=cfg["dataset"]["batch_size"])
+    test_loader = DataLoader(ds_test, batch_size=cfg["dataset"]["batch_size"])
 
     model = UNet(n_classes=104).to(device)
     loss_fn = TotalLoss(alpha=cfg["training"]["alpha"], beta=cfg["training"]["beta"])
     optimizer = torch.optim.Adam(model.parameters(), lr=float(cfg["training"]["lr"]))
 
-    scaler = GradScaler(enabled=(device.type == "cuda"))
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode="max", factor=0.5, patience=5, min_lr=1e-6
+    )
 
-    os.makedirs(cfg["logging"]["checkpoint_dir"], exist_ok=True)
     writer = SummaryWriter(cfg["logging"]["log_dir"]) if cfg["logging"]["use_tensorboard"] else None
 
-    best_val_miou = 0.0
+    best_miou = 0.0
     best_model_path = os.path.join(cfg["logging"]["checkpoint_dir"], "best_model.pt")
+    patience = 10
+    no_improve = 0
 
     for epoch in range(cfg["training"]["epochs"]):
-        train_one_epoch(model, train_loader, loss_fn, optimizer, device, epoch, writer, scaler)
-        _, val_miou = validate(model, val_loader, loss_fn, device, epoch, writer)
+        train_one_epoch(model, train_loader, loss_fn, optimizer, device, epoch, writer)
+        val_loss, val_miou = validate(model, val_loader, loss_fn, device, epoch, writer)
 
-        if val_miou > best_val_miou:
-            best_val_miou = val_miou
+        scheduler.step(val_miou)
+
+        if val_miou > best_miou:
+            best_miou = val_miou
+            no_improve = 0
             torch.save(model.state_dict(), best_model_path)
-            print(f"🌟 New best model saved (mIoU = {best_val_miou:.4f})")
+            print(f"🌟 Best model updated (mIoU = {best_miou:.4f})")
+        else:
+            no_improve += 1
+            if no_improve >= patience:
+                print("⏹ Early stopping triggered")
+                break
 
     model.load_state_dict(torch.load(best_model_path))
     test_loss, test_miou = test(model, test_loader, loss_fn, device)
-
-    log_experiment(cfg, best_val_miou, test_miou)
+    log_experiment(cfg, best_miou, test_miou)
 
     if writer:
         writer.close()
+
 
 if __name__ == "__main__":
     main()
