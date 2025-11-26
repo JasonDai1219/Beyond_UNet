@@ -16,8 +16,9 @@ from src.models.losses import TotalLoss
 
 
 # =========================
-# Reproducibility
+# 固定随机种子（可复现）
 # =========================
+
 def set_seed(seed=42):
     random.seed(seed)
     np.random.seed(seed)
@@ -30,8 +31,9 @@ set_seed(42)
 
 
 # =========================
-# mIoU computation
+# mIoU 计算
 # =========================
+
 def compute_miou(preds, masks, num_classes):
     preds = torch.argmax(preds, dim=1)
     ious = []
@@ -45,20 +47,20 @@ def compute_miou(preds, masks, num_classes):
 
         if union == 0:
             continue
-
         ious.append(intersection / union)
 
-    return sum(ious) / len(ious) if ious else 0.0
+    return sum(ious) / len(ious) if len(ious) > 0 else 0.0
 
 
 # =========================
-# Experiment Logger
+# 实验结果写入 TXT
 # =========================
-def log_experiment(cfg, best_val_miou, test_miou, save_path="experiments/experiments_log.txt"):
+
+def log_experiment(cfg, best_val_miou, test_miou, save_path):
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
     with open(save_path, "a") as f:
-        f.write("=" * 60 + "\n")
+        f.write("="*60 + "\n")
         f.write(f"Time: {datetime.now()}\n")
         f.write(f"Loss mode: {cfg['training']['loss_mode']}\n")
         f.write(f"epochs: {cfg['training']['epochs']}\n")
@@ -74,123 +76,94 @@ def log_experiment(cfg, best_val_miou, test_miou, save_path="experiments/experim
 
 
 # =========================
-# Train / Val / Test
+# 主流程
 # =========================
-def train_one_epoch(model, loader, loss_fn, optimizer, device, epoch, writer=None):
-    model.train()
-    total_loss = 0
 
-    for step, batch in enumerate(tqdm(loader, desc=f"Epoch {epoch}")):
-        images = batch["image"].to(device)
-        masks = batch["mask"].to(device)
-
-        preds = model(images)
-        loss, parts = loss_fn(preds, masks, images)
-
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        total_loss += loss.item()
-
-        if writer:
-            global_step = epoch * len(loader) + step
-            writer.add_scalar("Loss/train_total", loss.item(), global_step)
-            for k, v in parts.items():
-                writer.add_scalar(f"Loss/train_{k}", v, global_step)
-
-    return total_loss / len(loader)
-
-
-def validate(model, loader, loss_fn, device, num_classes, epoch, writer=None):
-    model.eval()
-    total_loss, total_miou = 0, 0
-
-    with torch.no_grad():
-        for batch in loader:
-            images = batch["image"].to(device)
-            masks = batch["mask"].to(device)
-
-            preds = model(images)
-            loss, _ = loss_fn(preds, masks, images)
-
-            total_loss += loss.item()
-            total_miou += compute_miou(preds, masks, num_classes)
-
-    avg_loss = total_loss / len(loader)
-    avg_miou = total_miou / len(loader)
-
-    print(f"Epoch {epoch} avg val loss: {avg_loss:.4f} | mIoU: {avg_miou:.4f}")
-
-    if writer:
-        writer.add_scalar("Loss/val", avg_loss, epoch)
-        writer.add_scalar("Metric/mIoU_val", avg_miou, epoch)
-
-    return avg_loss, avg_miou
-
-
-def test(model, loader, loss_fn, device, num_classes):
-    model.eval()
-    total_loss, total_miou = 0, 0
-
-    with torch.no_grad():
-        for batch in loader:
-            images = batch["image"].to(device)
-            masks = batch["mask"].to(device)
-
-            preds = model(images)
-            loss, _ = loss_fn(preds, masks, images)
-
-            total_loss += loss.item()
-            total_miou += compute_miou(preds, masks, num_classes)
-
-    return total_loss / len(loader), total_miou / len(loader)
-
-
-# =========================
-# Main
-# =========================
 def main(cfg_path="configs/config_foodseg.yaml"):
     with open(cfg_path, "r") as f:
         cfg = yaml.safe_load(f)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"⚡ Using {device}")
+    # ===== Drive 路径（永不丢失）=====
+    BASE_DIR = "/content/drive/MyDrive/foodseg_logs"
+    LOG_TXT_PATH = os.path.join(BASE_DIR, "experiments_log.txt")
+    BEST_MODEL_PATH = os.path.join(BASE_DIR, "best_model.pt")
+    TENSORBOARD_DIR = os.path.join(BASE_DIR, "tensorboard")
 
-    train_hf, val_hf, test_hf = load_foodseg103_splits(0.8, 0.1, 42)
+    os.makedirs(BASE_DIR, exist_ok=True)
+
+    # Device
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"⚡ Using device: {device}")
+
+    # Dataset
+    train_hf, val_hf, test_hf = load_foodseg103_splits(0.8, 0.1, seed=42)
     transform = BasicTransform(size=cfg["dataset"]["image_size"])
 
-    train_loader = DataLoader(FoodSegDataset(train_hf, transform=transform), batch_size=cfg["dataset"]["batch_size"], shuffle=True, num_workers=cfg["dataset"]["num_workers"])
-    val_loader = DataLoader(FoodSegDataset(val_hf, transform=transform), batch_size=cfg["dataset"]["batch_size"], shuffle=False, num_workers=cfg["dataset"]["num_workers"])
-    test_loader = DataLoader(FoodSegDataset(test_hf, transform=transform), batch_size=cfg["dataset"]["batch_size"], shuffle=False, num_workers=cfg["dataset"]["num_workers"])
+    ds_train = FoodSegDataset(train_hf, transform=transform)
+    ds_val = FoodSegDataset(val_hf, transform=transform)
+    ds_test = FoodSegDataset(test_hf, transform=transform)
+
+    train_loader = DataLoader(ds_train, batch_size=cfg["dataset"]["batch_size"], shuffle=True)
+    val_loader = DataLoader(ds_val, batch_size=cfg["dataset"]["batch_size"], shuffle=False)
+    test_loader = DataLoader(ds_test, batch_size=cfg["dataset"]["batch_size"], shuffle=False)
 
     model = UNet(n_classes=104).to(device)
     loss_fn = TotalLoss(alpha=cfg["training"]["alpha"], beta=cfg["training"]["beta"])
-    optimizer = torch.optim.Adam(model.parameters(), lr=float(cfg["training"]["lr"]))
+    optimizer = torch.optim.Adam(model.parameters(), lr=cfg["training"]["lr"])
 
-    writer = SummaryWriter(cfg["logging"]["log_dir"]) if cfg["logging"]["use_tensorboard"] else None
+    writer = SummaryWriter(TENSORBOARD_DIR)
 
     best_val_miou = 0.0
-    best_model_path = os.path.join(cfg["logging"]["checkpoint_dir"], "best_model.pt")
 
+    # ---------------- TRAIN ----------------
     for epoch in range(cfg["training"]["epochs"]):
-        train_one_epoch(model, train_loader, loss_fn, optimizer, device, epoch, writer)
-        _, val_miou = validate(model, val_loader, loss_fn, device, 104, epoch, writer)
+        model.train()
+        for batch in tqdm(train_loader, desc=f"Epoch {epoch}"):
+            imgs = batch["image"].to(device)
+            masks = batch["mask"].to(device)
+
+            preds = model(imgs)
+            loss, _ = loss_fn(preds, masks, imgs)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+        model.eval()
+        total_miou = 0
+
+        with torch.no_grad():
+            for batch in val_loader:
+                imgs = batch["image"].to(device)
+                masks = batch["mask"].to(device)
+                preds = model(imgs)
+                total_miou += compute_miou(preds, masks, 104)
+
+        val_miou = total_miou / len(val_loader)
+        print(f"Epoch {epoch} | Val mIoU: {val_miou:.4f}")
 
         if val_miou > best_val_miou:
             best_val_miou = val_miou
-            torch.save(model.state_dict(), best_model_path)
-            print(f"🌟 New best model saved (mIoU = {best_val_miou:.4f})")
+            torch.save(model.state_dict(), BEST_MODEL_PATH)
+            print(f"🌟 Best model updated: {best_val_miou:.4f}")
 
-    model.load_state_dict(torch.load(best_model_path))
-    test_loss, test_miou = test(model, test_loader, loss_fn, device, 104)
+    # ---------------- TEST ----------------
+    model.load_state_dict(torch.load(BEST_MODEL_PATH))
+    total_test_miou = 0
 
-    print(f"✅ Final Test Loss: {test_loss:.6f} | Test mIoU: {test_miou:.4f}")
+    with torch.no_grad():
+        for batch in test_loader:
+            imgs = batch["image"].to(device)
+            masks = batch["mask"].to(device)
+            preds = model(imgs)
+            total_test_miou += compute_miou(preds, masks, 104)
 
-    log_experiment(cfg, best_val_miou, test_miou)
+    test_miou = total_test_miou / len(test_loader)
+    print(f"✅ Final Test mIoU: {test_miou:.4f}")
 
-    if writer:
-        writer.close()
+    # 写入实验记录
+    log_experiment(cfg, best_val_miou, test_miou, LOG_TXT_PATH)
+    writer.close()
 
 
 if __name__ == "__main__":
