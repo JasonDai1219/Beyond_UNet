@@ -1,3 +1,4 @@
+# src/train.py
 import os
 import yaml
 import torch
@@ -11,11 +12,12 @@ from torch.utils.tensorboard import SummaryWriter
 from src.data.dataset_foodseg import FoodSegDataset, load_foodseg103_splits
 from src.data.transforms import BasicTransform
 from src.models.unet import UNet
+from src.models.simple_cnn import SimpleSegNet
 from src.models.losses import TotalLoss
 
 
 # =========================
-# Seed for reproducibility
+# Reproducibility Seed
 # =========================
 
 def set_seed(seed=42):
@@ -43,6 +45,7 @@ def compute_miou(preds, masks, num_classes):
 
         intersection = (pred_cls & mask_cls).sum().item()
         union = (pred_cls | mask_cls).sum().item()
+
         if union == 0:
             continue
         ious.append(intersection / union)
@@ -51,7 +54,7 @@ def compute_miou(preds, masks, num_classes):
 
 
 # =========================
-# Train one epoch (AMP enabled)
+# Train one epoch (AMP)
 # =========================
 
 def train_one_epoch(model, loader, loss_fn, optimizer, device, epoch, writer=None):
@@ -88,7 +91,7 @@ def train_one_epoch(model, loader, loss_fn, optimizer, device, epoch, writer=Non
 
 
 # =========================
-# Validation loop
+# Validation
 # =========================
 
 def validate(model, loader, loss_fn, device, epoch, writer=None, num_classes=104):
@@ -100,7 +103,6 @@ def validate(model, loader, loss_fn, device, epoch, writer=None, num_classes=104
         for batch in loader:
             images = batch["image"].to(device)
             masks = batch["mask"].to(device)
-
             preds = model(images)
             loss, _ = loss_fn(preds, masks, images)
 
@@ -120,7 +122,7 @@ def validate(model, loader, loss_fn, device, epoch, writer=None, num_classes=104
 
 
 # =========================
-# Test loop
+# Test
 # =========================
 
 def test(model, loader, loss_fn, device, num_classes=104):
@@ -132,7 +134,6 @@ def test(model, loader, loss_fn, device, num_classes=104):
         for batch in loader:
             images = batch["image"].to(device)
             masks = batch["mask"].to(device)
-
             preds = model(images)
             loss, _ = loss_fn(preds, masks, images)
 
@@ -156,21 +157,24 @@ def log_experiment(cfg, best_val_miou, test_miou, save_path="experiments/experim
     with open(save_path, "a") as f:
         f.write("="*60 + "\n")
         f.write(f"Time: {datetime.now()}\n")
+        f.write(f"Model: {cfg['training'].get('model_type', 'unet')}\n")
         f.write(f"Loss mode: {cfg['training']['loss_mode']}\n")
         f.write(f"epochs: {cfg['training']['epochs']}\n")
         f.write(f"lr: {cfg['training']['lr']}\n")
         f.write(f"batch_size: {cfg['dataset']['batch_size']}\n")
+
         f.write(f"alpha: {cfg['training']['alpha']}\n")
         f.write(f"beta: {cfg['training']['beta']}\n")
         f.write(f"lambda_edge: {cfg['training']['lambda_edge']}\n")
         f.write(f"lambda_reflect: {cfg['training']['lambda_reflect']}\n")
         f.write(f"sigma_edge: {cfg['training']['sigma_edge']}\n")
+
         f.write(f"BEST Val mIoU: {best_val_miou:.4f}\n")
         f.write(f"TEST mIoU: {test_miou:.4f}\n\n")
 
 
 # =========================
-# Main Training
+# Main
 # =========================
 
 def main(cfg_path="configs/config_foodseg.yaml"):
@@ -187,24 +191,55 @@ def main(cfg_path="configs/config_foodseg.yaml"):
     ds_val = FoodSegDataset(val_hf, transform=transform)
     ds_test = FoodSegDataset(test_hf, transform=transform)
 
-    train_loader = DataLoader(ds_train, batch_size=cfg["dataset"]["batch_size"], shuffle=True)
-    val_loader = DataLoader(ds_val, batch_size=cfg["dataset"]["batch_size"])
-    test_loader = DataLoader(ds_test, batch_size=cfg["dataset"]["batch_size"])
+    train_loader = DataLoader(
+        ds_train,
+        batch_size=cfg["dataset"]["batch_size"],
+        shuffle=True,
+        num_workers=cfg["dataset"]["num_workers"]
+    )
 
-    model = UNet(n_classes=104).to(device)
-    loss_fn = TotalLoss(alpha=cfg["training"]["alpha"], beta=cfg["training"]["beta"])
+    val_loader = DataLoader(
+        ds_val,
+        batch_size=cfg["dataset"]["batch_size"],
+        num_workers=cfg["dataset"]["num_workers"]
+    )
+
+    test_loader = DataLoader(
+        ds_test,
+        batch_size=cfg["dataset"]["batch_size"],
+        num_workers=cfg["dataset"]["num_workers"]
+    )
+
+    model_type = cfg["training"].get("model_type", "unet")
+
+    if model_type == "unet":
+        model = UNet(n_classes=104).to(device)
+    elif model_type == "simple_cnn":
+        model = SimpleSegNet(num_classes=104).to(device)
+    else:
+        raise ValueError(f"Unknown model type: {model_type}")
+
+    loss_fn = TotalLoss(
+        alpha=cfg["training"]["alpha"],
+        beta=cfg["training"]["beta"]
+    )
+
     optimizer = torch.optim.Adam(model.parameters(), lr=float(cfg["training"]["lr"]))
 
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode="max", factor=0.5, patience=5, min_lr=1e-6
+        optimizer,
+        mode="max",
+        factor=0.5,
+        patience=5,
+        min_lr=1e-6
     )
 
     writer = SummaryWriter(cfg["logging"]["log_dir"]) if cfg["logging"]["use_tensorboard"] else None
 
     best_miou = 0.0
-    best_model_path = os.path.join(cfg["logging"]["checkpoint_dir"], "best_model.pt")
     patience = 10
     no_improve = 0
+    best_model_path = os.path.join(cfg["logging"]["checkpoint_dir"], "best_model.pt")
 
     for epoch in range(cfg["training"]["epochs"]):
         train_one_epoch(model, train_loader, loss_fn, optimizer, device, epoch, writer)
@@ -225,6 +260,7 @@ def main(cfg_path="configs/config_foodseg.yaml"):
 
     model.load_state_dict(torch.load(best_model_path))
     test_loss, test_miou = test(model, test_loader, loss_fn, device)
+
     log_experiment(cfg, best_miou, test_miou)
 
     if writer:
