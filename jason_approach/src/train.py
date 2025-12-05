@@ -8,6 +8,7 @@ from datetime import datetime
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
+import matplotlib.pyplot as plt
 
 from jason_approach.src.data.dataset_foodseg import FoodSegDataset, load_foodseg103_splits
 from jason_approach.src.data.transforms import BasicTransform
@@ -148,6 +149,50 @@ def test(model, loader, loss_fn, device, num_classes=104):
     print(f"✅ Final Test Loss: {avg_loss:.6f} | Test mIoU: {avg_miou:.4f}")
     return avg_loss, avg_miou
 
+def visualize_prediction(model, dataset, device, idx=0):
+    """
+    Visualize one sample from the dataset:
+    - original image
+    - ground truth mask
+    - predicted mask
+    """
+    model.eval()
+
+    # pick a sample
+    sample = dataset[idx]
+
+    image = sample["image"]
+    mask = sample["mask"]
+
+    # convert to batch & device
+    img_tensor = image.unsqueeze(0).to(device)
+
+    with torch.no_grad():
+        pred = model(img_tensor)
+        pred = torch.argmax(pred, dim=1).squeeze(0).cpu().numpy()
+
+    # convert mask to numpy
+    mask_np = mask if isinstance(mask, np.ndarray) else mask.numpy()
+
+    # plot
+    plt.figure(figsize=(12,4))
+
+    plt.subplot(1,3,1)
+    plt.title("Original Image")
+    plt.imshow(image.permute(1,2,0).cpu())
+    plt.axis("off")
+
+    plt.subplot(1,3,2)
+    plt.title("Ground Truth Mask")
+    plt.imshow(mask_np)
+    plt.axis("off")
+
+    plt.subplot(1,3,3)
+    plt.title("Predicted Mask")
+    plt.imshow(pred)
+    plt.axis("off")
+
+    plt.show()
 
 # =========================
 # Experiment Logger
@@ -262,6 +307,9 @@ def main(cfg_path="configs/config_foodseg.yaml"):
 
     model.load_state_dict(torch.load(best_model_path))
     test_loss, test_miou = test(model, test_loader, loss_fn, device)
+
+    # 可视化 test set 第 0 张图
+    visualize_prediction(model, ds_test, device, idx=0)
 
     log_experiment(cfg, best_miou, test_miou)
 
