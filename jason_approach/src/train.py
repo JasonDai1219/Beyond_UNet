@@ -9,11 +9,11 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
 
-from src.data.dataset_foodseg import FoodSegDataset, load_foodseg103_splits
-from src.data.transforms import BasicTransform
-from src.models.unet import UNet
-from src.models.simple_cnn import SimpleSegNet
-from src.models.losses import TotalLoss
+from jason_approach.src.data.dataset_foodseg import FoodSegDataset, load_foodseg103_splits
+from jason_approach.src.data.transforms import BasicTransform
+from jason_approach.src.models.unet import UNet
+from jason_approach.src.models.simple_cnn import SimpleSegNet
+from jason_approach.src.models.losses import TotalLoss
 
 
 # =========================
