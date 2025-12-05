@@ -15,6 +15,8 @@ from jason_approach.src.models.unet import UNet
 from jason_approach.src.models.simple_cnn import SimpleSegNet
 from jason_approach.src.models.losses import TotalLoss
 
+import argparse
+
 
 # =========================
 # Reproducibility Seed
@@ -266,6 +268,59 @@ def main(cfg_path="configs/config_foodseg.yaml"):
     if writer:
         writer.close()
 
-
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Segmentation Training Pipeline")
+
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="jason_approach/configs/config_foodseg.yaml",
+        help="Path to YAML config file",
+    )
+
+    parser.add_argument(
+        "--model",
+        type=str,
+        default=None,
+        choices=["unet", "simple_cnn"],
+        help="Override model type in config",
+    )
+
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        default=None,
+        help="Override number of epochs",
+    )
+
+    parser.add_argument(
+        "--batch",
+        type=int,
+        default=None,
+        help="Override batch size",
+    )
+
+    args = parser.parse_args()
+
+    # Load config
+    with open(args.config, "r") as f:
+        cfg = yaml.safe_load(f)
+
+    # Apply overrides
+    if args.model is not None:
+        cfg["training"]["model_type"] = args.model
+    if args.epochs is not None:
+        cfg["training"]["epochs"] = args.epochs
+    if args.batch is not None:
+        cfg["dataset"]["batch_size"] = args.batch
+
+    # Write updated config to a temporary dictionary instead of modifying file
+    main_cfg_path = "__temp_config_runtime.yaml"
+    with open(main_cfg_path, "w") as f:
+        yaml.dump(cfg, f)
+
+    # Launch training
+    main(main_cfg_path)
+
+    # Clean temp file
+    os.remove(main_cfg_path)
