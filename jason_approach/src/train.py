@@ -286,7 +286,14 @@ def main(cfg_path="configs/config_foodseg.yaml"):
     best_miou = 0.0
     patience = 10
     no_improve = 0
-    best_model_path = os.path.join(cfg["logging"]["checkpoint_dir"], "best_model.pt")
+    # resolve checkpoint directory from config
+    checkpoint_dir = cfg["logging"]["checkpoint_dir"]
+
+    # ensure directory exists (config path is relative to project root)
+    os.makedirs(checkpoint_dir, exist_ok=True)
+
+    # full path for best model
+    best_model_path = os.path.join(checkpoint_dir, "best_model.pt")
 
     for epoch in range(cfg["training"]["epochs"]):
         train_one_epoch(model, train_loader, loss_fn, optimizer, device, epoch, writer)
