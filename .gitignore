@@ -32,7 +32,6 @@ experiments/visualizations/
 *.ipynb_save
 
 # --- Data and outputs ---
-data/
 outputs/
 cache/
 tmp/
