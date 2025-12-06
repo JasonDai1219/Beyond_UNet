@@ -1,7 +1,4 @@
-# ============================================
-# train.py — Full Version with Hyperparameter Search + Loss Plots
-# ============================================
-
+# src/train.py
 import os
 import yaml
 import torch
@@ -13,19 +10,17 @@ from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
 import matplotlib.pyplot as plt
 
-from UNet_updated_loss_weight.src.data.dataset_foodseg import FoodSegDataset, load_foodseg103_splits
-from UNet_updated_loss_weight.src.data.transforms import BasicTransform
-from UNet_updated_loss_weight.src.models.unet import UNet
-from UNet_updated_loss_weight.src.models.simple_cnn import SimpleSegNet
-from UNet_updated_loss_weight.src.models.losses import TotalLoss
+from jason_approach.src.data.dataset_foodseg import FoodSegDataset, load_foodseg103_splits
+from jason_approach.src.data.transforms import BasicTransform
+from jason_approach.src.models.unet import UNet
+from jason_approach.src.models.simple_cnn import SimpleSegNet
+from jason_approach.src.models.losses import TotalLoss
 
 import argparse
 
-
-
-# ============================================
-# Reproducibility
-# ============================================
+# =========================
+# Reproducibility Seed
+# =========================
 
 def set_seed(seed=42):
     random.seed(seed)
@@ -37,11 +32,9 @@ def set_seed(seed=42):
 
 set_seed(42)
 
-
-
-# ============================================
+# =========================
 # mIoU computation
-# ============================================
+# =========================
 
 def compute_miou(preds, masks, num_classes):
     preds = torch.argmax(preds, dim=1)
@@ -60,11 +53,9 @@ def compute_miou(preds, masks, num_classes):
 
     return 0.0 if len(ious) == 0 else sum(ious) / len(ious)
 
-
-
-# ============================================
-# Training for one epoch
-# ============================================
+# =========================
+# Train one epoch (AMP)
+# =========================
 
 def train_one_epoch(model, loader, loss_fn, optimizer, device, epoch, writer=None):
     model.train()
@@ -98,11 +89,9 @@ def train_one_epoch(model, loader, loss_fn, optimizer, device, epoch, writer=Non
     print(f"Epoch {epoch} avg train loss: {avg_loss:.4f}")
     return avg_loss
 
-
-
-# ============================================
+# =========================
 # Validation
-# ============================================
+# =========================
 
 def validate(model, loader, loss_fn, device, epoch, writer=None, num_classes=104):
     model.eval()
@@ -130,11 +119,9 @@ def validate(model, loader, loss_fn, device, epoch, writer=None, num_classes=104
 
     return avg_loss, avg_miou
 
-
-
-# ============================================
+# =========================
 # Test
-# ============================================
+# =========================
 
 def test(model, loader, loss_fn, device, num_classes=104):
     model.eval()
@@ -157,63 +144,54 @@ def test(model, loader, loss_fn, device, num_classes=104):
     print(f"✅ Final Test Loss: {avg_loss:.6f} | Test mIoU: {avg_miou:.4f}")
     return avg_loss, avg_miou
 
-
-
-# ============================================
-# Visualization
-# ============================================
-
 def visualize_prediction(model, dataset, device, idx=0):
+    """
+    Visualize one sample from the dataset:
+    - original image
+    - ground truth mask
+    - predicted mask
+    """
     model.eval()
 
+    # pick a sample
     sample = dataset[idx]
+
     image = sample["image"]
     mask = sample["mask"]
 
+    # convert to batch & device
     img_tensor = image.unsqueeze(0).to(device)
 
     with torch.no_grad():
         pred = model(img_tensor)
         pred = torch.argmax(pred, dim=1).squeeze(0).cpu().numpy()
 
+    # convert mask to numpy
     mask_np = mask if isinstance(mask, np.ndarray) else mask.numpy()
 
+    # plot
     plt.figure(figsize=(12,4))
-    plt.subplot(1,3,1); plt.title("Original Image"); plt.imshow(image.permute(1,2,0).cpu()); plt.axis("off")
-    plt.subplot(1,3,2); plt.title("Ground Truth Mask"); plt.imshow(mask_np); plt.axis("off")
-    plt.subplot(1,3,3); plt.title("Predicted Mask"); plt.imshow(pred); plt.axis("off")
+
+    plt.subplot(1,3,1)
+    plt.title("Original Image")
+    plt.imshow(image.permute(1,2,0).cpu())
+    plt.axis("off")
+
+    plt.subplot(1,3,2)
+    plt.title("Ground Truth Mask")
+    plt.imshow(mask_np)
+    plt.axis("off")
+
+    plt.subplot(1,3,3)
+    plt.title("Predicted Mask")
+    plt.imshow(pred)
+    plt.axis("off")
+
     plt.show()
 
-
-
-# ============================================
-# Plot loss curves
-# ============================================
-
-def plot_loss_curves(train_loss, val_loss, save_path):
-    epochs = np.arange(len(train_loss))
-
-    plt.figure(figsize=(7,5))
-    plt.plot(epochs, train_loss, label="Train Loss", linewidth=2)
-    plt.plot(epochs, val_loss, label="Validation Loss", linewidth=2, linestyle="--")
-
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.title("Training vs Validation Loss")
-    plt.grid(alpha=0.3)
-    plt.legend()
-
-    plt.tight_layout()
-    plt.savefig(save_path, dpi=300)
-    plt.close()
-
-    print(f"📁 Saved training curve: {save_path}")
-
-
-
-# ============================================
+# =========================
 # Experiment Logger
-# ============================================
+# =========================
 
 def log_experiment(cfg, best_val_miou, test_miou, save_path="experiments/experiments_log.txt"):
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
@@ -226,28 +204,27 @@ def log_experiment(cfg, best_val_miou, test_miou, save_path="experiments/experim
         f.write(f"epochs: {cfg['training']['epochs']}\n")
         f.write(f"lr: {cfg['training']['lr']}\n")
         f.write(f"batch_size: {cfg['dataset']['batch_size']}\n")
+
         f.write(f"alpha: {cfg['training']['alpha']}\n")
         f.write(f"beta: {cfg['training']['beta']}\n")
         f.write(f"lambda_edge: {cfg['training']['lambda_edge']}\n")
         f.write(f"lambda_reflect: {cfg['training']['lambda_reflect']}\n")
         f.write(f"sigma_edge: {cfg['training']['sigma_edge']}\n")
+
         f.write(f"BEST Val mIoU: {best_val_miou:.4f}\n")
         f.write(f"TEST mIoU: {test_miou:.4f}\n\n")
 
+# =========================
+# Main
+# =========================
 
-
-# ============================================
-# Main Training Function — modified to return best mIoU
-# ============================================
-
-def main(cfg_path):
+def main(cfg_path="configs/config_foodseg.yaml"):
     with open(cfg_path, "r") as f:
         cfg = yaml.safe_load(f)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"⚡ Using device: {device}")
 
-    # load data
     train_hf, val_hf, test_hf = load_foodseg103_splits(0.8, 0.1, seed=42)
     transform = BasicTransform(size=cfg["dataset"]["image_size"])
 
@@ -255,12 +232,27 @@ def main(cfg_path):
     ds_val = FoodSegDataset(val_hf, transform=transform)
     ds_test = FoodSegDataset(test_hf, transform=transform)
 
-    train_loader = DataLoader(ds_train, batch_size=cfg["dataset"]["batch_size"], shuffle=True, num_workers=cfg["dataset"]["num_workers"])
-    val_loader = DataLoader(ds_val, batch_size=cfg["dataset"]["batch_size"], num_workers=cfg["dataset"]["num_workers"])
-    test_loader = DataLoader(ds_test, batch_size=cfg["dataset"]["batch_size"], num_workers=cfg["dataset"]["num_workers"])
+    train_loader = DataLoader(
+        ds_train,
+        batch_size=cfg["dataset"]["batch_size"],
+        shuffle=True,
+        num_workers=cfg["dataset"]["num_workers"]
+    )
 
-    # model select
+    val_loader = DataLoader(
+        ds_val,
+        batch_size=cfg["dataset"]["batch_size"],
+        num_workers=cfg["dataset"]["num_workers"]
+    )
+
+    test_loader = DataLoader(
+        ds_test,
+        batch_size=cfg["dataset"]["batch_size"],
+        num_workers=cfg["dataset"]["num_workers"]
+    )
+
     model_type = cfg["training"].get("model_type", "unet")
+
     if model_type == "unet":
         model = UNet(n_classes=104).to(device)
     elif model_type == "simple_cnn":
@@ -268,42 +260,38 @@ def main(cfg_path):
     else:
         raise ValueError(f"Unknown model type: {model_type}")
 
-    # loss
     loss_fn = TotalLoss(
         alpha=cfg["training"]["alpha"],
-        beta=cfg["training"]["beta"],
-        lambda_edge=cfg["training"]["lambda_edge"],
-        lambda_reflect=cfg["training"]["lambda_reflect"],
-        sigma_edge=cfg["training"]["sigma_edge"]
+        beta=cfg["training"]["beta"]
     )
 
     optimizer = torch.optim.Adam(model.parameters(), lr=float(cfg["training"]["lr"]))
 
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode="max", factor=0.5, patience=5, min_lr=1e-6
+        optimizer,
+        mode="max",
+        factor=0.5,
+        patience=5,
+        min_lr=1e-6
     )
 
     writer = SummaryWriter(cfg["logging"]["log_dir"]) if cfg["logging"]["use_tensorboard"] else None
 
-    # record curves
-    train_losses = []
-    val_losses = []
-
     best_miou = 0.0
     patience = 10
     no_improve = 0
-
+    # resolve checkpoint directory from config
     checkpoint_dir = cfg["logging"]["checkpoint_dir"]
+
+    # ensure directory exists (config path is relative to project root)
     os.makedirs(checkpoint_dir, exist_ok=True)
+
+    # full path for best model
     best_model_path = os.path.join(checkpoint_dir, "best_model.pt")
 
-    # training loop
     for epoch in range(cfg["training"]["epochs"]):
-        train_loss = train_one_epoch(model, train_loader, loss_fn, optimizer, device, epoch, writer)
+        train_one_epoch(model, train_loader, loss_fn, optimizer, device, epoch, writer)
         val_loss, val_miou = validate(model, val_loader, loss_fn, device, epoch, writer)
-
-        train_losses.append(train_loss)
-        val_losses.append(val_loss)
 
         scheduler.step(val_miou)
 
@@ -318,79 +306,16 @@ def main(cfg_path):
                 print("⏹ Early stopping triggered")
                 break
 
-    # load best model
     model.load_state_dict(torch.load(best_model_path))
     test_loss, test_miou = test(model, test_loader, loss_fn, device)
 
-    # visualize
+    # 可视化 test set 第 0 张图
     visualize_prediction(model, ds_test, device, idx=0)
 
-    # log result
     log_experiment(cfg, best_miou, test_miou)
-
-    # plot loss curve
-    loss_plot_path = os.path.join(checkpoint_dir, "loss_curve.png")
-    plot_loss_curves(train_losses, val_losses, loss_plot_path)
 
     if writer:
         writer.close()
-
-    # important: return performance metrics for hyperparameter search
-    return best_miou, test_miou
-
-
-
-# ============================================
-# Hyperparameter Search (Grid Search)
-# ============================================
-
-def run_hyperparameter_search(base_cfg, search_space, max_runs=None):
-    from itertools import product
-
-    keys = list(search_space.keys())
-    values = list(search_space.values())
-
-    runs = list(product(*values))
-    if max_runs:
-        runs = runs[:max_runs]
-
-    results = []
-
-    for i, combo in enumerate(runs):
-        print("\n" + "="*80)
-        print(f"🔥 Running hyperparameter set {i+1}/{len(runs)}")
-        print("="*80)
-
-        cfg = yaml.safe_load(yaml.dump(base_cfg))
-
-        for k, v in zip(keys, combo):
-            cfg["training"][k] = float(v)
-
-        temp_cfg_path = f"__temp_cfg_search_{i}.yaml"
-        with open(temp_cfg_path, "w") as f:
-            yaml.dump(cfg, f)
-
-        best_val_miou, test_miou = main(temp_cfg_path)
-
-        results.append({
-            "params": dict(zip(keys, combo)),
-            "val_mIoU": best_val_miou,
-            "test_mIoU": test_miou
-        })
-
-        os.remove(temp_cfg_path)
-
-    print("\n===== 🎯 Hyperparameter Search Summary =====")
-    for r in results:
-        print(r)
-
-    return sorted(results, key=lambda x: -x["val_mIoU"])
-
-
-
-# ============================================
-# CLI + Search Mode
-# ============================================
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Segmentation Training Pipeline")
@@ -398,36 +323,53 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config",
         type=str,
-        default="UNet_updated_loss_weight/configs/config_foodseg.yaml",
+        default="jason_approach/configs/config_foodseg.yaml",
         help="Path to YAML config file",
     )
 
     parser.add_argument(
-        "--search",
-        action="store_true",
-        help="Run hyperparameter search instead of a single training run",
+        "--model",
+        type=str,
+        default=None,
+        choices=["unet", "simple_cnn"],
+        help="Override model type in config",
+    )
+
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        default=None,
+        help="Override number of epochs",
+    )
+
+    parser.add_argument(
+        "--batch",
+        type=int,
+        default=None,
+        help="Override batch size",
     )
 
     args = parser.parse_args()
 
+    # Load config
     with open(args.config, "r") as f:
-        base_cfg = yaml.safe_load(f)
+        cfg = yaml.safe_load(f)
 
-    if args.search:
-        search_space = {
-            "lambda_edge": [0.1, 0.3, 0.5],
-            "lambda_reflect": [0.1, 0.2],
-            "alpha": [1.0],
-            "beta": [0.5, 1.0]
-        }
-        results = run_hyperparameter_search(base_cfg, search_space)
-        print("🏆 Best configuration found:")
-        print(results[0])
+    # Apply overrides
+    if args.model is not None:
+        cfg["training"]["model_type"] = args.model
+    if args.epochs is not None:
+        cfg["training"]["epochs"] = args.epochs
+    if args.batch is not None:
+        cfg["dataset"]["batch_size"] = args.batch
 
-    else:
-        temp_cfg_path = "__temp_single_run.yaml"
-        with open(temp_cfg_path, "w") as f:
-            yaml.dump(base_cfg, f)
+    # Write updated config to a temporary dictionary instead of modifying file
+    main_cfg_path = "__temp_config_runtime.yaml"
+    with open(main_cfg_path, "w") as f:
+        yaml.dump(cfg, f)
 
-        main(temp_cfg_path)
-        os.remove(temp_cfg_path)
+    # Launch training
+    main(main_cfg_path)
+
+    # Clean temp file
+    os.remove(main_cfg_path)
