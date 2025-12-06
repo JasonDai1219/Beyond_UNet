@@ -398,7 +398,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config",
         type=str,
-        default="jason_approach/configs/config_foodseg.yaml",
+        default="UNet_updated_loss_weight/configs/config_foodseg.yaml",
         help="Path to YAML config file",
     )
 
