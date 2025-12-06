@@ -10,11 +10,11 @@ from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
 import matplotlib.pyplot as plt
 
-from jason_approach.src.data.dataset_foodseg import FoodSegDataset, load_foodseg103_splits
-from jason_approach.src.data.transforms import BasicTransform
-from jason_approach.src.models.unet import UNet
-from jason_approach.src.models.simple_cnn import SimpleSegNet
-from jason_approach.src.models.losses import TotalLoss
+from UNet_updated_loss_weight.src.data.dataset_foodseg import FoodSegDataset, load_foodseg103_splits
+from UNet_updated_loss_weight.src.data.transforms import BasicTransform
+from UNet_updated_loss_weight.src.models.unet import UNet
+from UNet_updated_loss_weight.src.models.simple_cnn import SimpleSegNet
+from UNet_updated_loss_weight.src.models.losses import TotalLoss
 
 import argparse
 
@@ -323,7 +323,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config",
         type=str,
-        default="jason_approach/configs/config_foodseg.yaml",
+        default="UNet_updated_loss_weight/configs/config_foodseg.yaml",
         help="Path to YAML config file",
     )
 
