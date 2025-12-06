@@ -1,0 +1,22 @@
+dataset:
+  image_size: 256
+  batch_size: 8
+  num_workers: 2
+
+training:
+  model_type: unet
+  epochs: 60
+  lr: 0.0001
+  loss_mode: advanced
+
+  # Advanced losses enabled
+  alpha: 0.5      # Dice
+  beta: 0.2       # Consistency
+  lambda_edge: 1.0
+  lambda_reflect: 0.1
+  sigma_edge: 3.0
+
+logging:
+  use_tensorboard: true
+  log_dir: runs/unet_advanced
+  checkpoint_dir: checkpoints/unet_advanced
