@@ -119,7 +119,7 @@ python3 -m UNet_updated_loss_weight.src.train \
 
 If you prefer running the project without local GPU setup, we provide a ready-to-use Google Colab notebook:
 
-👉 **Colab Notebook:**  
+👉 **Colab Notebook for baseline CNN, vanilla UNet, and UNet with updated Loss and Weight Map:**  
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](
 https://colab.research.google.com/drive/1_6uT4zyGa0F-40jQTX_1mwDqQ4tIhLTc?authuser=1
 )
