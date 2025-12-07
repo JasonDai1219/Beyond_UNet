@@ -9,14 +9,14 @@ training:
   lr: 0.0001
   loss_mode: advanced
 
-  # Advanced losses enabled
-  alpha: 0.5      # Dice
-  beta: 0.2       # Consistency
-  lambda_edge: 1.0
-  lambda_reflect: 0.1
-  sigma_edge: 3.0
+  # Tuned parameters (from coarse grid search)
+  alpha: 0.5         # Dice
+  beta: 0.25         # Consistency
+  lambda_edge: 0.7   # Best edge loss weight
+  lambda_reflect: 0.02
+  sigma_edge: 3.0    # Keep as before
 
 logging:
   use_tensorboard: true
-  log_dir: runs/unet_advanced
-  checkpoint_dir: checkpoints/unet_advanced
+  log_dir: runs/unet_final
+  checkpoint_dir: checkpoints/unet_final
