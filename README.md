@@ -15,3 +15,20 @@ The project includes:
 - Colab + local training options
 
 ---
+
+# 📂 Project Structure
+
+UNet_updated_loss_weight/
+│
+├── src/
+│   ├── train.py
+│   ├── models/
+│   └── data/
+│
+├── configs/
+│   ├── config_cnn.yaml
+│   ├── config_unet.yaml
+│   └── config_unet_advanced.yaml
+│
+├── train.ipynb
+└── README.md
