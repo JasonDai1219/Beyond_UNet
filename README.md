@@ -80,7 +80,6 @@ This project requires Python 3.9+ and PyTorch with CUDA support.
 ### 1. Clone the repository
 ```bash
 git clone https://github.com/<your-repo>/UNet_updated_loss_weight.git
-cd UNet_updated_loss_weight
 ```
 ### 2. Set up an environment
 ```
@@ -93,4 +92,55 @@ pip install -r requirements.txt
 
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 ```
+---
+# ▶️ How to Run (Local Training via CLI)
 
+In UNet_updated_loss_weight, all training is controlled by YAML configuration files located in UNet_updated_loss_weight/configs/
+```bash
+python3 -m UNet_updated_loss_weight.src.train --config <path-to-config>
+```
+The baseline CNN:
+```bash
+python3 -m UNet_updated_loss_weight.src.train \
+    --config UNet_updated_loss_weight/configs/config_cnn.yaml
+```
+The vanilla UNet:
+```bash
+python3 -m UNet_updated_loss_weight.src.train \
+    --config UNet_updated_loss_weight/configs/config_unet.yaml
+```
+The UNet + Updated Loss & Weight Map:
+```bash
+python3 -m UNet_updated_loss_weight.src.train \
+    --config UNet_updated_loss_weight/configs/config_unet_advanced.yaml
+```
+---
+# 🟦 Running in Google Colab
+
+If you prefer running the project without local GPU setup, we provide a ready-to-use Google Colab notebook:
+
+👉 **Colab Notebook:**  
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](
+https://colab.research.google.com/drive/1_6uT4zyGa0F-40jQTX_1mwDqQ4tIhLTc?authuser=1
+)
+
+This notebook includes:
+
+- automatic project folder download  
+- environment setup  
+- dataset preparation  
+- training (CNN / UNet / Improved UNet)  
+- visualization of predictions  
+- TensorBoard integration  
+
+---
+
+## ▶️ Steps to Run in Colab
+
+### **1. Open the notebook**
+Just click the link above.
+
+### **2. Enable GPU**
+In Colab: Runtime → Change runtime type → GPU
+
+### **3. Run all cells
