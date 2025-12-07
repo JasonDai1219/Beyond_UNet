@@ -6,7 +6,7 @@ import random
 import numpy as np
 from datetime import datetime
 from torch.utils.data import DataLoader
-from tqdm import tqdm
+from tqdm.auto import tqdm
 from torch.utils.tensorboard import SummaryWriter
 import matplotlib.pyplot as plt
 
