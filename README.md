@@ -143,4 +143,4 @@ Just click the link above.
 ### **2. Enable GPU**
 In Colab: Runtime → Change runtime type → GPU
 
-### **3. Run all cells
+### **3. Run all cells**
