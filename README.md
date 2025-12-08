@@ -66,6 +66,9 @@ We explored these components through:
 ### 🧩 4. Enhanced U-Net with ASPP bottleneck
 The last downsampling layer is replaced by an ASPP module.
 
+### 🧩 5. VGG16 + Decoder
+Transfer learning of pretrained VGG16 + Decoder.
+
 ---
 
 The goal of the project is to evaluate how each model behaves under different training setups and to investigate whether additional inductive biases (edge priors, reflection priors, consistency constraints) improve segmentation performance.
