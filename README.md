@@ -80,7 +80,7 @@ This project requires Python 3.9+ and PyTorch with CUDA support.
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/<your-repo>/UNet_updated_loss_weight.git
+git clone https://github.com/JasonDai1219/Beyond_UNet.git
 ```
 ### 2. Set up an environment
 ```
@@ -96,24 +96,36 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 ---
 # ▶️ How to Run (Local Training via CLI)
 
-In UNet_updated_loss_weight, all training is controlled by YAML configuration files located in UNet_updated_loss_weight/configs/
+In root directory, all training is controlled by YAML configuration files located in configs/
 ```bash
-python3 -m UNet_updated_loss_weight.src.train --config <path-to-config>
+python3 -m src.train --config <path-to-config>
 ```
 The baseline CNN:
 ```bash
-python3 -m UNet_updated_loss_weight.src.train \
-    --config UNet_updated_loss_weight/configs/config_cnn.yaml
+python3 -m src.train \
+    --config configs/config_cnn.yaml
 ```
 The vanilla UNet:
 ```bash
-python3 -m UNet_updated_loss_weight.src.train \
-    --config UNet_updated_loss_weight/configs/config_unet.yaml
+python3 -m src.train \
+    --config configs/config_unet.yaml
 ```
 The UNet + Updated Loss & Weight Map:
 ```bash
-python3 -m UNet_updated_loss_weight.src.train \
-    --config UNet_updated_loss_weight/configs/config_unet_advanced.yaml
+python3 -m src.train \
+    --config configs/config_unet_advanced.yaml
+```
+---
+The UNet + ASPP module:
+```bash
+python3 -m src.train \
+    --config configs/config_unet_aspp.yaml
+```
+---
+The VGG16 + Decoder:
+```bash
+python3 -m src.train \
+    --config configs/config_vgg.yaml
 ```
 ---
 # 🟦 Running in Google Colab

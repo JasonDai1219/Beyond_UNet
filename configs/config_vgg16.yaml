@@ -1,0 +1,22 @@
+dataset:
+  image_size: 256
+  batch_size: 8
+  num_workers: 2
+
+training:
+  model_type: vgg16
+  epochs: 60
+  lr: 0.0001
+  loss_mode: advanced
+
+  # Tuned parameters (from coarse grid search)
+  alpha: 0.5         # Dice
+  beta: 0.25         # Consistency
+  lambda_edge: 0.7   # Best edge loss weight
+  lambda_reflect: 0.02
+  sigma_edge: 3.0    # Keep as before
+
+logging:
+  use_tensorboard: true
+  log_dir: runs/vgg16
+  checkpoint_dir: checkpoints/vgg16

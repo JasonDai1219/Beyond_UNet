@@ -3,13 +3,6 @@ from datasets import load_dataset
 from torch.utils.data import Dataset
 import numpy as np
 from PIL import Image
-# src/data/dataset_foodseg.py
-
-from datasets import load_dataset
-from torch.utils.data import Dataset
-import numpy as np
-from PIL import Image
-import torch
 import random
 
 class FoodSegDataset(Dataset):

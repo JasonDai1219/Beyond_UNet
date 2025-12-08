@@ -10,11 +10,13 @@ from tqdm.auto import tqdm
 from torch.utils.tensorboard import SummaryWriter
 import matplotlib.pyplot as plt
 
-from UNet_updated_loss_weight.src.data.dataset_foodseg import FoodSegDataset, load_foodseg103_splits
-from UNet_updated_loss_weight.src.data.transforms import BasicTransform
-from UNet_updated_loss_weight.src.models.unet import UNet
-from UNet_updated_loss_weight.src.models.simple_cnn import SimpleSegNet
-from UNet_updated_loss_weight.src.models.losses import TotalLoss
+from src.data.dataset_foodseg import FoodSegDataset, load_foodseg103_splits
+from src.data.transforms import BasicTransform
+from src.models.unet import UNet
+from src.models.ASPPUNet import ASPPUNet
+from src.models.VGG_Encoder import VGG_Autoencoder
+from src.models.simple_cnn import SimpleSegNet
+from src.models.losses import TotalLoss
 
 import argparse
 
@@ -255,6 +257,10 @@ def main(cfg_path="configs/config_foodseg.yaml"):
 
     if model_type == "unet":
         model = UNet(n_classes=104).to(device)
+    elif model_type == "unet_aspp":
+        model = ASPPUNet(n_classes=104).to(device)
+    elif model_type == "vgg16":
+        model = VGG_Autoencoder(num_classes=104).to(device)
     elif model_type == "simple_cnn":
         model = SimpleSegNet(num_classes=104).to(device)
     else:
@@ -323,7 +329,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config",
         type=str,
-        default="UNet_updated_loss_weight/configs/config_foodseg.yaml",
+        default="configs/config_foodseg.yaml",
         help="Path to YAML config file",
     )
 

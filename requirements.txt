@@ -1,0 +1,7 @@
+numpy
+Pillow
+matplotlib
+tqdm
+PyYAML
+tensorboard
+datasets
