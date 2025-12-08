@@ -8,9 +8,9 @@ The project includes:
 
 - CNN baseline (simple segmentation model)
 - Vanilla UNet
-- Enhanced UNet with multi-loss supervision (this method)
-- **[Placeholder]** Teammate’s Method A  
-- **[Placeholder]** Teammate’s Method B  
+- Enhanced UNet with multi-loss supervision
+- Enhanced UNet with  Atrous Spatial Pyramid Pooling (ASPP) layer  
+- Pretrained VGG16 with decoder
 - Automated hyperparameter search
 - Colab + local training options
 
@@ -18,7 +18,7 @@ The project includes:
 
 # 📂 Project Structure
 ```
-UNet_updated_loss_weight/
+/
 │
 ├── src/
 │   ├── train.py
@@ -49,7 +49,7 @@ This model provides a minimal baseline for comparison with more advanced archite
 ### 🧩 2. Standard U-Net
 A conventional U-Net trained with **Cross-Entropy + Dice loss**, serving as a strong baseline.
 
-### 🧩 3. Enhanced U-Net (My Work)
+### 🧩 3. Enhanced U-Net with multi-loss supervision
 This repository includes an extended loss function that adds:
 
 - **Edge-Aware Loss** (λ_edge)  
@@ -63,10 +63,8 @@ We explored these components through:
 - fast prototype runs using a notebook  
 - full-scale training with TensorBoard logging
 
-### 🧩 4. Partner’s Method (Placeholder)
-This section is reserved for my teammate's alternative segmentation approach  
-(e.g., DeepLabV3+, Transformer-based segmentation, or post-processing optimization).  
-Details will be added by the teammate.
+### 🧩 4. Enhanced U-Net with ASPP bottleneck
+The last downsampling layer is replaced by an ASPP module.
 
 ---
 
