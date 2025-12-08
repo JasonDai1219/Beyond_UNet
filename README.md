@@ -131,8 +131,6 @@ This notebook includes:
 - environment setup  
 - dataset preparation  
 - training (CNN / UNet / Improved UNet)  
-- visualization of predictions  
-- TensorBoard integration  
 
 ---
 
