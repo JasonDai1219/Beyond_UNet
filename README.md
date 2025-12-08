@@ -102,31 +102,25 @@ python3 -m src.train --config <path-to-config>
 ```
 The baseline CNN:
 ```bash
-python3 -m src.train \
-    --config configs/config_cnn.yaml
+python3 -m src.train --config configs/config_cnn.yaml
 ```
 The vanilla UNet:
 ```bash
-python3 -m src.train \
-    --config configs/config_unet.yaml
+python3 -m src.train --config configs/config_unet.yaml
 ```
 The UNet + Updated Loss & Weight Map:
 ```bash
-python3 -m src.train \
-    --config configs/config_unet_advanced.yaml
+python3 -m src.train --config configs/config_unet_advanced.yaml
 ```
----
 The UNet + ASPP module:
 ```bash
-python3 -m src.train \
-    --config configs/config_unet_aspp.yaml
+python3 -m src.train --config configs/config_unet_aspp.yaml
 ```
----
 The VGG16 + Decoder:
 ```bash
-python3 -m src.train \
-    --config configs/config_vgg.yaml
+python3 -m src.train --config configs/config_vgg.yaml
 ```
+
 ---
 # 🟦 Running in Google Colab
 
